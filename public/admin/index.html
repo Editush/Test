@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Craftush · Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#040804; --glass:rgba(12,24,13,.58); --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.13); --line-lime:rgba(124,255,46,.22);
+    --text:#EEF5EC; --muted:#8E9E8B; --faint:#6E7E6C; --dim:rgba(238,245,236,.36); --lime:#7CFF2E; --red:#FF7A6E; --ok:#95FF5E;
+    --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif; --display:"Inter Tight","Inter",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace; --ease:cubic-bezier(.16,1,.3,1); --spring:cubic-bezier(.34,1.56,.64,1);
+  }
+  *{box-sizing:border-box}
+  html{background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;color-scheme:dark}
+  body{margin:0;min-height:100vh}
+  [hidden]{display:none !important}
+  a{color:#B4FF6A}
+  .bg{position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:radial-gradient(1000px 560px at 50% -14%,#1d6e17 0%,#0c2f0c 38%,transparent 72%),var(--bg)}
+  .bg::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.035) 1px,transparent 1.2px);background-size:26px 26px;
+    mask-image:radial-gradient(ellipse at 50% 20%,#000 30%,transparent 75%)}
+  .wrap{max-width:880px;margin:0 auto;padding:22px 24px 80px}
+  .top{display:flex;align-items:center;justify-content:space-between;height:52px;margin-bottom:40px}
+  .logo{display:inline-flex;align-items:center;gap:9px;font-family:var(--display);font-weight:600;font-size:1.25rem;letter-spacing:-.02em;color:var(--text);text-decoration:none}
+  .logo svg{filter:drop-shadow(0 0 10px #7CFF2E88)}
+  .tag{margin-left:10px;font-family:var(--mono);font-size:.64rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--lime)}
+  .tag::before{content:"[ ";opacity:.7} .tag::after{content:" ]";opacity:.7}
+  h1{font-family:var(--display);font-weight:400;font-size:clamp(2.2rem,5vw,3.4rem);line-height:1.02;letter-spacing:-.04em;margin:0 0 10px}
+  .lede{color:var(--muted);margin:0 0 30px}
+  .card{position:relative;overflow:hidden;background:var(--glass);border:1px solid var(--line);border-radius:26px;padding:30px 30px 30px;margin-bottom:18px;
+    backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);box-shadow:0 40px 90px -40px #000,inset 0 1px 0 rgba(255,255,255,.05)}
+  .card::after{content:"";position:absolute;left:50%;top:-1px;width:46%;height:1px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,rgba(180,255,106,.7),transparent)}
+  .card h2{font-family:var(--display);font-size:1.45rem;font-weight:400;letter-spacing:-.03em;margin:0 0 6px;display:flex;align-items:center;gap:12px}
+  .card p.help{color:var(--muted);font-size:.88rem;margin:0 0 20px;max-width:64ch}
+  .pill{font-family:var(--mono);font-size:.62rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
+  .pill.on{border-color:var(--line-lime);color:var(--lime);box-shadow:0 0 16px -6px var(--lime)}
+  .pill.off{border-color:rgba(255,122,110,.35);color:var(--red)}
+  label.field{display:flex;flex-direction:column;gap:8px;font-weight:500;font-size:.84rem;color:#D5DFD2}
+  input{font:inherit;font-size:.95rem;color:var(--text);background:rgba(255,255,255,.035);border:1px solid var(--line-2);border-radius:14px;padding:12px 14px;width:100%;transition:border-color .25s,box-shadow .25s,background .25s}
+  input::placeholder{color:#56654f}
+  input:focus-visible{outline:none;border-color:var(--line-lime);background:rgba(124,255,46,.04);box-shadow:0 0 0 4px rgba(124,255,46,.12)}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
+  button{font:inherit;font-weight:500;font-size:.9rem;cursor:pointer;display:inline-flex;align-items:center;gap:9px;border-radius:999px;padding:11px 20px;
+    border:1px solid var(--line-2);background:rgba(255,255,255,.04);color:var(--text);transition:transform .45s var(--spring),border-color .25s,background .25s,box-shadow .3s}
+  button:hover:not(:disabled){border-color:rgba(255,255,255,.26);background:rgba(255,255,255,.08)}
+  button:active:not(:disabled){transform:scale(.96);transition-duration:.12s}
+  button.primary{background:#F1F6EE;color:#08120A;border-color:#F1F6EE;padding:6px 6px 6px 20px;font-weight:600}
+  button.primary::after{content:"";width:32px;height:32px;border-radius:50%;flex:none;
+    background:var(--lime) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24'%3E%3Cpath d='M7 17L17 7M9 7h8v8' fill='none' stroke='%2308120A' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/14px no-repeat;
+    box-shadow:0 0 16px #7CFF2E88;transition:transform .5s var(--spring)}
+  button.primary:hover:not(:disabled){background:#fff;border-color:#fff;box-shadow:0 12px 34px -12px #7CFF2E88}
+  button.primary:hover:not(:disabled)::after{transform:rotate(45deg)}
+  button.danger{color:var(--red);border-color:rgba(255,122,110,.25)}
+  button.danger:hover:not(:disabled){background:rgba(255,122,110,.08);border-color:rgba(255,122,110,.5)}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+  .status{font-size:.86rem;min-height:1.4em;margin:14px 0 0;color:var(--muted)}
+  .status.ok{color:var(--ok)} .status.err{color:var(--red)}
+  .keyline{font-size:.9rem;margin:0 0 16px;color:#C7D3C4;font-variant-numeric:tabular-nums}
+  .keyline b{font-family:var(--mono);font-weight:500;color:var(--lime);letter-spacing:.04em}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+  .stat{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:18px;padding:16px 18px}
+  .stat span{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--lime)}
+  .stat b{display:block;font-family:var(--display);font-size:2.2rem;font-weight:400;letter-spacing:-.03em;margin-top:6px;font-variant-numeric:tabular-nums}
+  .small{font-size:.78rem;color:var(--faint);margin:0;font-family:var(--mono)}
+  .login{max-width:440px}
+  @media (prefers-reduced-motion:no-preference){
+    .card,h1,.lede{animation:rise .9s var(--ease) backwards}
+    .lede{animation-delay:.08s} .card{animation-delay:.14s} .card:nth-of-type(2){animation-delay:.22s} .card:nth-of-type(3){animation-delay:.3s}
+    @keyframes rise{from{opacity:0;transform:translateY(18px);filter:blur(8px)}}
+    .status:not(:empty){animation:fade .5s var(--ease)} @keyframes fade{from{opacity:0;transform:translateY(6px)}}
+  }
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true"></div>
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="/" aria-label="Craftush home">
+      <svg width="28" height="28" viewBox="0 0 30 30" aria-hidden="true">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D6FF9E"/><stop offset="1" stop-color="#7CFF2E"/></linearGradient></defs>
+        <path d="M13 2c1 7.5 4.5 11 12 12-7.5 1-11 4.5-12 12-1-7.5-4.5-11-12-12 7.5-1 11-4.5 12-12z" fill="url(#lg)"/>
+        <path d="M25 1c.4 2.6 1.4 3.6 4 4-2.6.4-3.6 1.4-4 4-.4-2.6-1.4-3.6-4-4 2.6-.4 3.6-1.4 4-4z" fill="#7CFF2E"/>
+      </svg>
+      Craftush <span class="tag">Admin</span>
+    </a>
+    <button id="signOut" hidden>Sign out</button>
+  </header>
+
+  <!-- Sign in -->
+  <section id="loginView" class="login">
+    <h1>Admin <span style="color:var(--dim)">sign in.</span></h1>
+    <p class="lede">Manage the Runware key and team access for Craftush.</p>
+    <div class="card">
+      <label class="field">Admin password
+        <input type="password" id="pw" autocomplete="current-password" autofocus>
+      </label>
+      <div class="row"><button class="primary" id="loginBtn">Sign in</button></div>
+      <p class="status" id="loginStatus" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <!-- Panel -->
+  <section id="panel" hidden>
+    <h1>Control <span style="color:var(--dim)">room.</span></h1>
+    <p class="lede">Your team generates images at <a href="/">craftush.netlify.app</a> without ever seeing the key.</p>
+
+    <div class="card">
+      <h2>Runware API key <span class="pill" id="keyPill">…</span></h2>
+      <p class="help">Stored securely on Netlify's servers and added to every request by the relay. It's checked with Runware before saving.</p>
+      <p class="keyline" id="keyLine"></p>
+      <label class="field">New key
+        <input type="password" id="newKey" autocomplete="off" placeholder="Paste a Runware API key to save or replace it">
+      </label>
+      <div class="row">
+        <button class="primary" id="saveKey">Save key</button>
+        <button id="testKey">Test current key</button>
+        <button class="danger" id="removeKey">Remove key</button>
+      </div>
+      <p class="status" id="keyStatus" aria-live="polite"></p>
+    </div>
+
+    <div class="card">
+      <h2>Team access code <span class="pill" id="codePill">…</span></h2>
+      <p class="help">When set, only people who enter this code on the main page can generate images, so strangers who find the link can't spend your credits. Leave it empty to turn it off. Change it anytime; everyone will be asked for the new one.</p>
+      <label class="field">Code
+        <input type="text" id="code" autocomplete="off" maxlength="64" placeholder="e.g. craftush-team-2026">
+      </label>
+      <div class="row"><button class="primary" id="saveCode">Save code</button></div>
+      <p class="status" id="codeStatus" aria-live="polite"></p>
+    </div>
+
+    <div class="card">
+      <h2>Usage</h2>
+      <p class="help">Counted by the relay from Runware's replies. Runware's own dashboard is the final word on billing.</p>
+      <div class="stats">
+        <div class="stat"><span>Images generated</span><b id="uImages">0</b></div>
+        <div class="stat"><span>Prompts written</span><b id="uPrompts">0</b></div>
+        <div class="stat"><span>Spent</span><b id="uCost">$0.00</b></div>
+      </div>
+      <p class="small" id="uSince"></p>
+      <div class="row"><button id="refresh">Refresh</button><button class="danger" id="resetUsage">Reset counters</button></div>
+      <p class="status" id="usageStatus" aria-live="polite"></p>
+    </div>
+    <p class="small" id="ver"></p>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let PW = '';
+try { PW = sessionStorage.getItem('craftush-admin') || ''; } catch {}
+
+function setStatus(id, msg, kind = ''){ const el = $(id); el.textContent = msg; el.className = 'status ' + kind; }
+const when = iso => iso ? new Date(iso).toLocaleString() : '';
+const money = v => '$' + (v > 0 && v < 1 ? v.toFixed(3) : v.toFixed(2));
+
+async function call(action, extra = {}){
+  let r;
+  try {
+    r = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': PW },
+      body: JSON.stringify({ action, ...extra })
+    });
+  } catch { throw new Error('Couldn\'t reach the server. Check your connection.'); }
+  let j;
+  try { j = await r.json(); }
+  catch { throw new Error(r.status === 404 ? 'The admin server isn\'t deployed yet. Follow the setup guide (GitHub-linked deploy).' : 'Server answered with HTTP ' + r.status); }
+  if (!r.ok){ const e = new Error((j.errors && j.errors[0] && j.errors[0].message) || 'Something went wrong'); e.status = r.status; throw e; }
+  return j;
+}
+
+function render(v){
+  const k = v.key;
+  $('#keyPill').textContent = k.set ? 'Active' : 'Not set';
+  $('#keyPill').className = 'pill ' + (k.set ? 'on' : 'off');
+  $('#keyLine').innerHTML = k.set
+    ? `Saved key ends in <b>••••${k.last4.replace(/[<>&]/g, '')}</b>${k.updated ? ' · updated ' + when(k.updated) : ''}${k.source === 'environment' ? ' · from the RUNWARE_API_KEY environment variable' : ''}`
+    : 'No key yet. Your team can\'t generate images until you add one.';
+  $('#removeKey').disabled = k.source !== 'admin';
+  $('#testKey').disabled = !k.set;
+  $('#code').value = v.teamCode;
+  $('#codePill').textContent = v.teamCode ? 'Required' : 'Off';
+  $('#codePill').className = 'pill ' + (v.teamCode ? 'on' : '');
+  const u = v.usage || {};
+  $('#uImages').textContent = (u.images || 0).toLocaleString();
+  $('#uPrompts').textContent = (u.prompts || 0).toLocaleString();
+  $('#uCost').textContent = money(u.cost || 0);
+  $('#uSince').textContent = `Since ${when(u.since)}${u.last ? ' · last activity ' + when(u.last) : ''}`;
+  $('#ver').textContent = v.version ? 'Backend version ' + v.version : 'Backend version 1: the latest update is not live yet';
+}
+
+function showPanel(v){
+  $('#loginView').hidden = true; $('#panel').hidden = false; $('#signOut').hidden = false;
+  render(v);
+}
+function signOut(msg){
+  PW = ''; try { sessionStorage.removeItem('craftush-admin'); } catch {}
+  $('#panel').hidden = true; $('#signOut').hidden = true; $('#loginView').hidden = false;
+  $('#pw').value = ''; $('#pw').focus();
+  setStatus('#loginStatus', msg || '');
+}
+async function guarded(id, fn){
+  try { await fn(); }
+  catch (e){ if (e.status === 401) signOut('Your session ended. Sign in again.'); else setStatus(id, e.message, 'err'); }
+}
+
+async function login(){
+  PW = $('#pw').value;
+  if (!PW){ setStatus('#loginStatus', 'Enter the admin password.', 'err'); return; }
+  $('#loginBtn').disabled = true; setStatus('#loginStatus', 'Signing in…');
+  try {
+    const v = await call('get');
+    try { sessionStorage.setItem('craftush-admin', PW); } catch {}
+    setStatus('#loginStatus', ''); showPanel(v);
+  } catch (e){ PW = ''; setStatus('#loginStatus', e.message, 'err'); }
+  $('#loginBtn').disabled = false;
+}
+$('#loginBtn').addEventListener('click', login);
+$('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+$('#signOut').addEventListener('click', () => signOut());
+
+$('#saveKey').addEventListener('click', () => guarded('#keyStatus', async () => {
+  const key = $('#newKey').value.trim();
+  if (!key){ setStatus('#keyStatus', 'Paste a Runware key first.', 'err'); return; }
+  $('#saveKey').disabled = true; setStatus('#keyStatus', 'Checking the key with Runware…');
+  try { render(await call('saveKey', { key })); $('#newKey').value = ''; setStatus('#keyStatus', 'Key saved. Your team can generate images now.', 'ok'); }
+  finally { $('#saveKey').disabled = false; }
+}));
+$('#testKey').addEventListener('click', () => guarded('#keyStatus', async () => {
+  setStatus('#keyStatus', 'Testing…'); await call('testKey'); setStatus('#keyStatus', 'The key works.', 'ok');
+}));
+$('#removeKey').addEventListener('click', () => guarded('#keyStatus', async () => {
+  if (!confirm('Remove the saved Runware key? Your team won\'t be able to generate images until you add one again.')) return;
+  render(await call('removeKey')); setStatus('#keyStatus', 'Key removed.', 'ok');
+}));
+$('#saveCode').addEventListener('click', () => guarded('#codeStatus', async () => {
+  const code = $('#code').value.trim();
+  render(await call('saveCode', { code }));
+  setStatus('#codeStatus', code ? 'Saved. Share this code with your team.' : 'Code removed. Anyone with the link can generate images.', 'ok');
+}));
+$('#refresh').addEventListener('click', () => guarded('#usageStatus', async () => { render(await call('get')); setStatus('#usageStatus', 'Updated.', 'ok'); }));
+$('#resetUsage').addEventListener('click', () => guarded('#usageStatus', async () => {
+  if (!confirm('Reset the usage counters to zero?')) return;
+  render(await call('resetUsage')); setStatus('#usageStatus', 'Counters reset.', 'ok');
+}));
+
+if (PW) call('get').then(showPanel).catch(() => signOut());
+</script>
+</body>
+</html>
