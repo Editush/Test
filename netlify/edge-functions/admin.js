@@ -2,7 +2,7 @@
 // password, which lives only in the ADMIN_PASSWORD environment variable on Netlify.
 import {
   openStore, json, fail, safeEqual, env, readSettings, readUsage, activeKey, checkKey,
-  VERSION, DEFAULT_CARDS, dashboardView, analyzeWorkflow, RUNWARE_URL, DEFAULT_TEXT_MODEL, textModel,
+  VERSION, DEFAULT_CARDS, dashboardView, analyzeWorkflow, RUNWARE_URL, DEFAULT_TEXT_MODEL, textModel, DEFAULT_TEXT_BACKUP, textBackup, cleanMessage,
 } from "../lib/shared.js";
 
 const MAX_UPLOAD = 8 * 1024 * 1024; // 8 MB
@@ -19,6 +19,8 @@ const view = (settings, usage, comfyMeta) => {
     teamCode: settings.teamCode || "",
     textModel: textModel(settings),
     textModelDefault: DEFAULT_TEXT_MODEL,
+    textBackup: textBackup(settings),
+    textBackupDefault: DEFAULT_TEXT_BACKUP,
     usage,
     dashboard: dashboardView(settings),
     comfy: comfyMeta || null,
@@ -78,9 +80,11 @@ export default async (req) => {
       return reply();
 
     case "saveTextModel": {
-      const m = String(body.model || "").trim();
-      if (m && !/^[A-Za-z0-9._-]+:[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$/.test(m)) return fail("A Runware model ID looks like provider:model@version, for example deepseek:v4@flash", 400);
+      const ID = /^[A-Za-z0-9._-]+:[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$/;
+      const m = String(body.model || "").trim(), b = String(body.backup || "").trim();
+      for (const v of [m, b]) if (v && !ID.test(v)) return fail("A Runware model ID looks like provider:model@version, for example deepseek:v4@flash", 400);
       if (m) settings.textModel = m; else delete settings.textModel;
+      if (b) settings.textBackup = b; else delete settings.textBackup;
       await store.setJSON("settings", settings);
       return reply();
     }
@@ -98,9 +102,9 @@ export default async (req) => {
           }]),
         });
         const data = await res.json().catch(() => ({}));
-        if (data.errors && data.errors.length) return fail("Runware said: " + (data.errors[0].message || "error"), 400);
+        if (data.errors && data.errors.length) return fail(model + ": " + cleanMessage(data.errors[0].message || "error"), 400);
         const t = (data.data || []).find((d) => d.taskType === "textInference");
-        if (!t) return fail("Runware returned HTTP " + res.status + " without a text reply.", 400);
+        if (!t) return fail(model + ": Runware returned HTTP " + res.status + " without a text reply.", 400);
         return json({ ok: true, model, reply: String(t.text || "").slice(0, 80), cost: t.cost ?? null });
       } catch { return fail("Couldn't reach Runware from the server.", 502); }
     }

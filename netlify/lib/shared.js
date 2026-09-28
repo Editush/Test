@@ -2,11 +2,17 @@
 import { getStore } from "@netlify/blobs";
 
 // Shown on the admin page so you can confirm which backend version is live.
-export const VERSION = "5";
+export const VERSION = "6";
 
 // Text model used for smart script splitting (confirmed in Runware's official SDK examples).
 export const DEFAULT_TEXT_MODEL = "deepseek:v4@flash";
 export const textModel = (settings) => settings.textModel || DEFAULT_TEXT_MODEL;
+// Backup text model, tried automatically if the main one is having an outage (also from Runware's SDK examples).
+export const DEFAULT_TEXT_BACKUP = "runware:qwen3-thinking@1";
+export const textBackup = (settings) => settings.textBackup || DEFAULT_TEXT_BACKUP;
+export const textModels = (settings) => [...new Set([textModel(settings), textBackup(settings)])];
+// Error text from Runware can contain a raw HTML error page; keep only readable words.
+export const cleanMessage = (m) => String(m || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220);
 
 export const RUNWARE_URL = "https://api.runware.ai/v1";
 

@@ -170,9 +170,14 @@
       <h2>Script splitter <span class="pill on" id="textPill">AI</span></h2>
       <p class="help">The Runware text model that reads the whole script and splits it into complete, meaningful moments (step 1 of Stunning Visuals). It runs on your Runware key. To use Claude, search Runware's model library for “Claude”, paste its model ID here and press Test.</p>
       <p class="keyline" id="textLine"></p>
-      <label class="field">Runware text model ID
-        <input type="text" id="textModel" spellcheck="false" autocomplete="off" placeholder="provider:model@version">
-      </label>
+      <div class="two">
+        <label class="field">Main text model
+          <input type="text" id="textModel" spellcheck="false" autocomplete="off" placeholder="provider:model@version">
+        </label>
+        <label class="field">Backup text model <span style="color:var(--faint);font-weight:400">(used automatically if the main one is down)</span>
+          <input type="text" id="textBackup" spellcheck="false" autocomplete="off" placeholder="provider:model@version">
+        </label>
+      </div>
       <div class="row">
         <button class="primary" id="saveText">Save model</button>
         <button id="testText">Test model</button>
@@ -288,7 +293,8 @@ function render(v){
   $('#uSince').textContent = `Since ${when(u.since)}${u.last ? ' · last activity ' + when(u.last) : ''}`;
   renderDashboard(v);
   $('#textModel').value = v.textModel || '';
-  $('#textLine').innerHTML = `In use: <b>${esc(v.textModel)}</b>${v.textModel === v.textModelDefault ? ' (default)' : ''}`;
+  $('#textBackup').value = v.textBackup || '';
+  $('#textLine').innerHTML = `Main: <b>${esc(v.textModel)}</b>${v.textModel === v.textModelDefault ? ' (default)' : ''} · Backup: <b>${esc(v.textBackup)}</b>${v.textBackup === v.textBackupDefault ? ' (default)' : ''}`;
   $('#ver').textContent = v.version ? 'Backend version ' + v.version : 'Backend version 1: the latest update is not live yet';
 }
 
@@ -349,15 +355,20 @@ $('#resetUsage').addEventListener('click', () => guarded('#usageStatus', async (
 
 // ---------- script splitter model ----------
 $('#saveText').addEventListener('click', () => guarded('#textStatus', async () => {
-  render(await call('saveTextModel', { model: $('#textModel').value })); setStatus('#textStatus', 'Saved. Smart split uses this model now.', 'ok');
+  render(await call('saveTextModel', { model: $('#textModel').value, backup: $('#textBackup').value })); setStatus('#textStatus', 'Saved. Smart split uses these models now.', 'ok');
 }));
 $('#testText').addEventListener('click', () => guarded('#textStatus', async () => {
-  setStatus('#textStatus', 'Asking the model to reply…');
-  const r = await call('testTextModel', { model: $('#textModel').value });
-  setStatus('#textStatus', `It works. ${r.model} replied “${r.reply}”${r.cost != null ? ' · cost $' + Number(r.cost).toFixed(5) : ''}. Press Save model to use it.`, 'ok');
+  setStatus('#textStatus', 'Asking both models to reply…');
+  const results = [];
+  for (const id of [$('#textModel').value, $('#textBackup').value]){
+    try { const r = await call('testTextModel', { model: id }); results.push({ ok: true, text: `${r.model} works` }); }
+    catch (e){ if (e.status === 401) throw e; results.push({ ok: false, text: e.message }); }
+  }
+  const allOk = results.every(r => r.ok);
+  setStatus('#textStatus', results.map(r => (r.ok ? '✓ ' : '✗ ') + r.text).join('   ') + (allOk ? '. Press Save model to use them.' : ''), allOk ? 'ok' : 'err');
 }));
 $('#resetText').addEventListener('click', () => guarded('#textStatus', async () => {
-  render(await call('saveTextModel', { model: '' })); setStatus('#textStatus', 'Back to the default model.', 'ok');
+  render(await call('saveTextModel', { model: '', backup: '' })); setStatus('#textStatus', 'Back to the default models.', 'ok');
 }));
 
 // ---------- dashboard ----------

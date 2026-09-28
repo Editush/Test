@@ -837,13 +837,16 @@ function alignBeats(text, beats, fold = 2){
   if (fold && out.length > 1 && (out[0].match(WORD_RE) || []).length <= fold) out.splice(0, 2, out[0] + ' ' + out[1]);
   return { segments: out.map(x => x.replace(/\s+/g, ' ')), matched: bw.length > 1 ? exact / (bw.length - 1) : 1 };
 }
+const cleanMsg = m => String(m || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+let splitModel = '';
 async function smartSplit(text){
-  const chunks = scriptChunks(text), beats = [];
+  const chunks = scriptChunks(text), beats = []; splitModel = '';
   for (let i = 0; i < chunks.length; i++){
     setStatus('#s1', chunks.length > 1 ? `Reading the script and finding complete moments… part ${i + 1} of ${chunks.length}` : 'Reading the whole script and finding complete moments…');
     const json = await relay([{ taskType: 'textInference', taskUUID: uuid(), model: 'set-by-admin', includeCost: true,
       messages: [{ role: 'user', content: splitPrompt(chunks[i], i + 1, chunks.length) }], settings: { maxTokens: 6000, temperature: 0.2 } }]);
-    if (json.errors && json.errors.length) throw new Error(json.errors[0].message || 'Runware returned an error');
+    if (json.errors && json.errors.length) throw new Error(cleanMsg(json.errors[0].message) || 'Runware returned an error');
+    if (json.model) splitModel = json.model;
     const t = (json.data || []).find(d => d.taskType === 'textInference');
     if (t && typeof t.cost === 'number') state.cost.prompts += t.cost;
     const list = t && parseBeats(t.text);
@@ -865,7 +868,7 @@ $('#splitBtn').addEventListener('click', async () => {
   try {
     if (smart){
       try { segs = await smartSplit(text); }
-      catch (e){ segs = splitSentences(text); note = ` Smart split didn’t work (${e.message}), so it split at full stops instead.`; smart = false; }
+      catch (e){ segs = splitSentences(text); const why = cleanMsg(e.message); note = ` Smart split didn’t work: ${why}${/[.!?]$/.test(why) ? '' : '.'} It split at full stops instead.`; smart = false; }
     } else segs = splitSentences(text);
   } finally { $('#splitBtn').disabled = false; }
   let countNote = '';
@@ -878,7 +881,7 @@ $('#splitBtn').addEventListener('click', async () => {
   state.items = segs.map(t => ({ text: t, prompt: '', status: 'idle', b64: null, url: null, err: '' }));
   const secs = segs.map(secsFor), avg = secs.reduce((a, b) => a + b, 0) / (secs.length || 1);
   const summary = smart
-    ? `Found ${segs.length} complete moments, so ${segs.length} images, about ${avg.toFixed(1)} s each (${Math.min(...secs)} to ${Math.max(...secs)} s).`
+    ? `Found ${segs.length} complete moments, so ${segs.length} images, about ${avg.toFixed(1)} s each (${Math.min(...secs)} to ${Math.max(...secs)} s)${splitModel ? ', split by ' + splitModel : ''}.`
     : `Split into ${segs.length} pieces, so ${segs.length} images, about ${avg.toFixed(1)} s each.`;
   setStatus('#s1', summary + note + countNote, note || countNote ? 'err' : 'ok');
   renderAll();
