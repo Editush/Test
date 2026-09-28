@@ -1,8 +1,8 @@
 // Relay: the browser sends image/prompt tasks here, the server adds the secret
 // Runware key and forwards them. The key never reaches anyone's browser.
-import { openStore, json, fail, safeEqual, readSettings, readUsage, activeKey, RUNWARE_URL, VERSION } from "../lib/shared.js";
+import { openStore, json, fail, safeEqual, readSettings, readUsage, activeKey, RUNWARE_URL, VERSION, textModel } from "../lib/shared.js";
 
-const ALLOWED = new Set(["imageInference", "promptEnhance"]);
+const ALLOWED = new Set(["imageInference", "promptEnhance", "textInference"]);
 const MAX_TASKS = 12;
 
 export default async (req) => {
@@ -12,7 +12,7 @@ export default async (req) => {
   const code = settings.teamCode || "";
 
   // GET: tells the page whether a team code is needed and whether a key is set.
-  if (req.method === "GET") return json({ configured: !!apiKey, codeRequired: !!code, version: VERSION });
+  if (req.method === "GET") return json({ configured: !!apiKey, codeRequired: !!code, version: VERSION, textModel: textModel(settings) });
   if (req.method !== "POST") return fail("Method not allowed", 405);
 
   if (code && !safeEqual(req.headers.get("x-team-code") || "", code))
@@ -24,8 +24,15 @@ export default async (req) => {
   if (!Array.isArray(tasks) || !tasks.length || tasks.length > MAX_TASKS)
     return fail(`Send between 1 and ${MAX_TASKS} tasks per request.`, 400);
   if (tasks.some((t) => !t || typeof t !== "object" || !ALLOWED.has(t.taskType)))
-    return fail("Only image generation and prompt tasks are allowed.", 400);
-  const clean = tasks.map(({ apiKey: _ignored, ...t }) => t);
+    return fail("Only image generation, prompt and script-splitting tasks are allowed.", 400);
+  const clean = tasks.map(({ apiKey: _ignored, ...t }) => {
+    if (t.taskType !== "textInference") return t;
+    // Text tasks always use the model chosen in /admin, answer in one reply, and can't call tools.
+    const { tools: _t, toolChoice: _c, webhookURL: _w, ...rest } = t;
+    const s = rest.settings && typeof rest.settings === "object" ? { ...rest.settings } : {};
+    s.maxTokens = Math.min(Number(s.maxTokens) || 4000, 8000);
+    return { ...rest, model: textModel(settings), deliveryMethod: "sync", settings: s };
+  });
 
   let upstream;
   try {
@@ -48,7 +55,7 @@ export default async (req) => {
   try {
     const items = Array.isArray(data.data) ? data.data : [];
     const images = items.filter((d) => d.taskType === "imageInference" && (d.imageBase64Data || d.imageURL)).length;
-    const prompts = items.filter((d) => d.taskType === "promptEnhance").length;
+    const prompts = items.filter((d) => d.taskType === "promptEnhance" || d.taskType === "textInference").length;
     const cost = items.reduce((s, d) => s + (typeof d.cost === "number" ? d.cost : 0), 0);
     if (images || prompts || cost) {
       const usage = await readUsage(store);

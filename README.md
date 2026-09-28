@@ -2,10 +2,14 @@
 
 Script-to-Premiere image tool with a private backend.
 
-- `public/index.html` – the tool your team uses (craftush.netlify.app)
+- `public/index.html` – dashboard with the three tool cards (craftush.netlify.app)
+- `public/visuals/index.html` – Stunning Visuals (craftush.netlify.app/visuals)
+- `public/comfy/index.html` – Idea to Video, the ComfyUI front end (craftush.netlify.app/comfy)
 - `public/admin/index.html` – admin page (craftush.netlify.app/admin)
 - `netlify/edge-functions/runware.js` – relay that adds the secret Runware key
 - `netlify/edge-functions/admin.js` – admin API (password protected)
+- `netlify/edge-functions/tools.js` – dashboard settings and the ComfyUI workflow for the team
+- `netlify/edge-functions/thumbnail.js` – serves the thumbnail generator uploaded in /admin (craftush.netlify.app/thumbnail)
 
 ## One-time setup
 
@@ -35,3 +39,10 @@ Drag-and-drop deploys no longer work for this project, because they don't includ
 
 - New admin password: edit `ADMIN_PASSWORD` in Netlify, then redeploy.
 - New team code or Runware key: change it on the /admin page. It takes effect immediately.
+
+## Dashboard tools
+
+- **Thumbnail generator:** upload a single HTML file in /admin → Dashboard. It opens at /thumbnail.
+- **Idea to Video:** in ComfyUI choose Workflow → Export (API), upload that JSON in /admin, pick which text box receives the idea,
+  tick the settings the team may change, and set the default ComfyUI address.
+  Each ComfyUI (Desktop or server) must have CORS enabled for https://craftush.netlify.app and the workflow's models installed.

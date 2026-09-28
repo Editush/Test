@@ -1,8 +1,13 @@
 // Admin API for craftush.netlify.app/admin. Every request must carry the admin
 // password, which lives only in the ADMIN_PASSWORD environment variable on Netlify.
-import { openStore, json, fail, safeEqual, env, readSettings, readUsage, activeKey, checkKey, VERSION } from "../lib/shared.js";
+import {
+  openStore, json, fail, safeEqual, env, readSettings, readUsage, activeKey, checkKey,
+  VERSION, DEFAULT_CARDS, dashboardView, analyzeWorkflow, RUNWARE_URL, DEFAULT_TEXT_MODEL, textModel,
+} from "../lib/shared.js";
 
-const view = (settings, usage) => {
+const MAX_UPLOAD = 8 * 1024 * 1024; // 8 MB
+
+const view = (settings, usage, comfyMeta) => {
   const key = activeKey(settings);
   return {
     key: {
@@ -12,7 +17,11 @@ const view = (settings, usage) => {
       updated: settings.keyUpdated || null,
     },
     teamCode: settings.teamCode || "",
+    textModel: textModel(settings),
+    textModelDefault: DEFAULT_TEXT_MODEL,
     usage,
+    dashboard: dashboardView(settings),
+    comfy: comfyMeta || null,
     version: VERSION,
   };
 };
@@ -31,10 +40,13 @@ export default async (req) => {
   const store = openStore();
   const settings = await readSettings(store);
   let usage = await readUsage(store);
+  let comfyMeta = await store.get("comfy-meta", { type: "json" });
+  const dash = () => (settings.dashboard = settings.dashboard || {});
+  const reply = () => json(view(settings, usage, comfyMeta));
 
   switch (body.action) {
     case "get":
-      return json(view(settings, usage));
+      return reply();
 
     case "saveKey": {
       const key = String(body.key || "").trim();
@@ -44,14 +56,14 @@ export default async (req) => {
       settings.runwareKey = key;
       settings.keyUpdated = new Date().toISOString();
       await store.setJSON("settings", settings);
-      return json(view(settings, usage));
+      return reply();
     }
 
     case "removeKey":
       delete settings.runwareKey;
       delete settings.keyUpdated;
       await store.setJSON("settings", settings);
-      return json(view(settings, usage));
+      return reply();
 
     case "testKey": {
       const key = activeKey(settings);
@@ -63,12 +75,124 @@ export default async (req) => {
     case "saveCode":
       settings.teamCode = String(body.code || "").trim().slice(0, 64);
       await store.setJSON("settings", settings);
-      return json(view(settings, usage));
+      return reply();
+
+    case "saveTextModel": {
+      const m = String(body.model || "").trim();
+      if (m && !/^[A-Za-z0-9._-]+:[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$/.test(m)) return fail("A Runware model ID looks like provider:model@version, for example deepseek:v4@flash", 400);
+      if (m) settings.textModel = m; else delete settings.textModel;
+      await store.setJSON("settings", settings);
+      return reply();
+    }
+
+    case "testTextModel": {
+      const key = activeKey(settings);
+      if (!key) return fail("Save a Runware key first.", 400);
+      const model = String(body.model || "").trim() || textModel(settings);
+      try {
+        const res = await fetch(RUNWARE_URL, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify([{ taskType: "authentication", apiKey: key }, {
+            taskType: "textInference", taskUUID: crypto.randomUUID(), model, deliveryMethod: "sync", includeCost: true,
+            messages: [{ role: "user", content: "Reply with the single word OK." }], settings: { maxTokens: 20 },
+          }]),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (data.errors && data.errors.length) return fail("Runware said: " + (data.errors[0].message || "error"), 400);
+        const t = (data.data || []).find((d) => d.taskType === "textInference");
+        if (!t) return fail("Runware returned HTTP " + res.status + " without a text reply.", 400);
+        return json({ ok: true, model, reply: String(t.text || "").slice(0, 80), cost: t.cost ?? null });
+      } catch { return fail("Couldn't reach Runware from the server.", 502); }
+    }
 
     case "resetUsage":
       usage = { images: 0, prompts: 0, cost: 0, since: new Date().toISOString() };
       await store.setJSON("usage", usage);
-      return json(view(settings, usage));
+      return reply();
+
+    // ----- dashboard cards -----
+    case "saveCard": {
+      const id = String(body.id || "");
+      if (!DEFAULT_CARDS[id]) return fail("Unknown card.", 400);
+      const cards = (dash().cards = dash().cards || {});
+      cards[id] = {
+        title: String(body.title || "").trim().slice(0, 60) || DEFAULT_CARDS[id].title,
+        desc: String(body.desc || "").trim().slice(0, 220) || DEFAULT_CARDS[id].desc,
+        enabled: body.enabled !== false,
+      };
+      await store.setJSON("settings", settings);
+      return reply();
+    }
+
+    case "uploadThumb": {
+      const html = String(body.html || "");
+      if (!html.trim()) return fail("That file is empty.", 400);
+      if (html.length > MAX_UPLOAD) return fail("That file is larger than 8 MB.", 400);
+      if (!/<html|<body|<script|<div|<!doctype/i.test(html)) return fail("That doesn't look like an HTML file.", 400);
+      await store.set("tool-thumbnail", html);
+      dash().thumb = { fileName: String(body.name || "thumbnail.html").slice(0, 120), size: html.length, updated: new Date().toISOString() };
+      await store.setJSON("settings", settings);
+      return reply();
+    }
+
+    case "removeThumb":
+      await store.set("tool-thumbnail", "");
+      delete dash().thumb;
+      await store.setJSON("settings", settings);
+      return reply();
+
+    // ----- ComfyUI workflow -----
+    case "uploadWorkflow": {
+      const text = String(body.json || "");
+      if (text.length > MAX_UPLOAD) return fail("That file is larger than 8 MB.", 400);
+      let wf;
+      try { wf = JSON.parse(text); } catch { return fail("That file isn't valid JSON.", 400); }
+      let info;
+      try { info = analyzeWorkflow(wf); } catch (e) { return fail(e.message, 400); }
+      await store.setJSON("comfy-workflow", wf);
+      const keep = comfyMeta || {};
+      const known = new Set(info.fields.map((f) => f.key));
+      comfyMeta = {
+        fields: info.fields,
+        nodeCount: info.nodeCount,
+        promptKey: known.has(keep.promptKey) ? keep.promptKey : info.promptKey,
+        negKey: known.has(keep.negKey) ? keep.negKey : info.negKey,
+        exposed: (keep.exposed || []).filter((e) => known.has(e.key)),
+        server: keep.server || "http://127.0.0.1:8000",
+        randomSeed: keep.randomSeed !== false,
+      };
+      await store.setJSON("comfy-meta", comfyMeta);
+      dash().comfyFile = { fileName: String(body.name || "workflow.json").slice(0, 120), size: text.length, nodes: info.nodeCount, updated: new Date().toISOString() };
+      await store.setJSON("settings", settings);
+      return reply();
+    }
+
+    case "saveComfy": {
+      if (!comfyMeta) return fail("Upload a workflow first.", 400);
+      const known = new Set(comfyMeta.fields.map((f) => f.key));
+      const promptKey = String(body.promptKey || "");
+      if (!known.has(promptKey)) return fail("Choose which text box receives the idea.", 400);
+      const server = String(body.server || "").trim().replace(/\/+$/, "");
+      if (server && !/^https?:\/\/[^\s]+$/i.test(server)) return fail("The ComfyUI address should start with http:// or https://", 400);
+      comfyMeta.promptKey = promptKey;
+      comfyMeta.negKey = known.has(body.negKey) ? String(body.negKey) : "";
+      comfyMeta.exposed = (Array.isArray(body.exposed) ? body.exposed : [])
+        .filter((e) => e && known.has(e.key) && e.key !== promptKey)
+        .slice(0, 12)
+        .map((e) => ({ key: String(e.key), label: String(e.label || "").slice(0, 60) }));
+      comfyMeta.server = server || "http://127.0.0.1:8000";
+      comfyMeta.randomSeed = body.randomSeed !== false;
+      await store.setJSON("comfy-meta", comfyMeta);
+      return reply();
+    }
+
+    case "removeWorkflow":
+      await store.setJSON("comfy-workflow", null);
+      await store.setJSON("comfy-meta", null);
+      comfyMeta = null;
+      delete dash().comfyFile;
+      await store.setJSON("settings", settings);
+      return reply();
 
     default:
       return fail("Unknown action", 400);
